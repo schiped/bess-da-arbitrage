@@ -1,0 +1,22 @@
+# Data ingestion settings. No parameters are hardcoded in src/data.py.
+zone: DE_LU                       # ENTSO-E bidding zone / Area name
+timezone: Europe/Berlin           # local delivery-day timezone for the zone
+cache_dir: data/raw               # parquet cache root, relative to project root
+api_key_env: ENTSOE_API_KEY       # env var holding the ENTSO-E Transparency token
+
+# Market time unit resolutions accepted from the API, in minutes.
+# SDAC day-ahead is 60min before 2025-10-01 and 15min from then on, so a range
+# that straddles that date legitimately contains both.
+allowed_resolutions_minutes: [15, 30, 60]
+
+# Long ranges are split into chunks of this many days and stitched locally.
+# entsoe-py 0.8.0 splits anything over a year itself and silently drops the
+# single interval sitting on its split boundary (verified: 2023-12-30 23:00Z
+# and 2024-12-30 23:00Z vanish from a 2-year pull but are present in a short
+# one). Staying well under the limit keeps that path from ever running.
+max_request_days: 180
+request_overlap_days: 1
+
+# Raise on gaps / duplicated intervals instead of warning. Keep true for
+# anything feeding the optimisation model.
+strict: true

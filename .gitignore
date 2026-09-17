@@ -1,2 +1,8 @@
 .env
 test-entsoe.py
+__pycache__/
+*.pyc
+data/
+results/
+dashboard/index.html
+CLAUDE.md

@@ -1,0 +1,35 @@
+# Solver and objective settings for a single optimisation window.
+# Rolling-horizon settings (gate closure, lookahead) live in their own file.
+
+solver: appsi_highs
+solver_tee: false          # stream solver log to stdout
+
+# Value placed on energy left in the battery at the end of the window, in
+# EUR per MWh *stored*. Without it the optimiser dumps the battery empty at the
+# horizon edge, which is an artefact of where we cut the problem, not a trade.
+#
+# null -> derived per window as efficiency_discharge * (mean price - degradation),
+# i.e. what a stored MWh is worth if discharged at an average price net of
+# throughput cost. Set a number here to pin it instead.
+terminal_soc_value_eur_per_mwh: null
+
+# Every run writes a schedule CSV and an assumptions dump here.
+results_dir: results
+
+# Forbid charging and discharging in the same interval.
+#
+# At sane prices the LP is already exclusive -- you cannot beat the round-trip
+# loss trading against yourself. Deeply negative prices break that: a full
+# battery at -500 EUR/MWh profits by charging at full power while discharging
+# just enough to hold SoC flat, burning energy through the loss to get paid
+# more for consuming. It pays below
+#   -round_trip_efficiency * degradation / (1 - round_trip_efficiency)
+# = -16.53 EUR/MWh with the default battery, which DE-LU cleared below
+# repeatedly in 2023-24. A single-inverter asset cannot do it.
+#
+# Binaries are added only to intervals priced below that threshold, so most
+# windows remain pure LPs. Turn this off only to measure the artefact.
+enforce_no_simultaneous_operation: true
+
+# Post-solve assertion that no interval both charges and discharges.
+max_simultaneous_mw: 1.0e-6

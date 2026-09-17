@@ -1,0 +1,1077 @@
+<title>DE-LU Arbitrage Backtest</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;450;500;600&display=swap">
+<style>
+:root {
+  color-scheme: light;
+  --plane:        #f4f6f9;
+  --surface:      #ffffff;
+  --surface-sunk: #eef1f6;
+  --ink:          #0f151d;
+  --ink-2:        #4b5664;
+  --ink-muted:    #7d8794;
+  --rule:         #dfe4ec;
+  --grid:         #e6eaf1;
+  --axis:         #c3cad4;
+  --s1:           #2a78d6;
+  --s1-wash:      rgba(42, 120, 214, 0.10);
+  --s1-dim:       #a8c6ec;
+  --s2:           #eb6834;
+  --s2-wash:      rgba(235, 104, 52, 0.10);
+  --s3:           #1baf7a;
+  --s3-wash:      rgba(27, 175, 122, 0.12);
+  --good:         #0ca30c;
+  --critical:     #d03b3b;
+  --shadow:       0 1px 2px rgba(15, 21, 29, 0.05), 0 8px 24px -16px rgba(15, 21, 29, 0.28);
+
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --plane:        #0b0e12;
+    --surface:      #141920;
+    --surface-sunk: #1b212a;
+    --ink:          #f3f6fa;
+    --ink-2:        #aab4c1;
+    --ink-muted:    #7d8794;
+    --rule:         #242b35;
+    --grid:         #222932;
+    --axis:         #343d49;
+    --s1:           #3987e5;
+    --s1-wash:      rgba(57, 135, 229, 0.14);
+    --s1-dim:       #2f4f75;
+    --s2:           #d95926;
+    --s2-wash:      rgba(217, 89, 38, 0.14);
+    --s3:           #199e70;
+    --s3-wash:      rgba(25, 158, 112, 0.16);
+    --good:         #0ca30c;
+    --critical:     #e06464;
+    --shadow:       0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px -16px rgba(0, 0, 0, 0.8);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --plane:        #0b0e12;
+  --surface:      #141920;
+  --surface-sunk: #1b212a;
+  --ink:          #f3f6fa;
+  --ink-2:        #aab4c1;
+  --ink-muted:    #7d8794;
+  --rule:         #242b35;
+  --grid:         #222932;
+  --axis:         #343d49;
+  --s1:           #3987e5;
+  --s1-wash:      rgba(57, 135, 229, 0.14);
+  --s1-dim:       #2f4f75;
+  --s2:           #d95926;
+  --s2-wash:      rgba(217, 89, 38, 0.14);
+  --s3:           #199e70;
+  --s3-wash:      rgba(25, 158, 112, 0.16);
+  --good:         #0ca30c;
+  --critical:     #e06464;
+  --shadow:       0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px -16px rgba(0, 0, 0, 0.8);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--plane);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding-inline: 20px;
+  padding-block: 40px 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+/* ---------- header + nameplate ---------- */
+
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  margin: 0 0 10px;
+}
+h1 {
+  font-size: clamp(28px, 4.4vw, 40px);
+  font-weight: 600;
+  letter-spacing: -0.021em;
+  line-height: 1.1;
+  text-wrap: balance;
+  margin: 0 0 12px;
+}
+.standfirst {
+  margin: 0;
+  max-width: 64ch;
+  color: var(--ink-2);
+  font-size: 16px;
+}
+
+.nameplate {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 28px;
+  padding: 14px 18px;
+  background: var(--surface-sunk);
+  border-radius: 3px;
+  border-left: 2px solid var(--s1);
+  font-family: var(--mono);
+  font-size: 12.5px;
+}
+.nameplate div { display: flex; gap: 7px; align-items: baseline; padding-block: 3px; }
+.nameplate dt { color: var(--ink-muted); }
+.nameplate dd { margin: 0; color: var(--ink); font-weight: 500; }
+
+/* ---------- hero + kpis ---------- */
+
+.headline {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  gap: 24px;
+  align-items: stretch;
+}
+@media (max-width: 760px) { .headline { grid-template-columns: 1fr; } }
+
+.hero {
+  background: var(--surface);
+  border-radius: 4px;
+  box-shadow: var(--shadow);
+  padding: 26px 26px 24px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+}
+.hero .label {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+.hero .figure {
+  font-size: clamp(46px, 7.4vw, 66px);
+  font-weight: 600;
+  letter-spacing: -0.032em;
+  line-height: 1;
+  margin-block: 6px 2px;
+}
+.hero .unit { font-size: 0.42em; font-weight: 450; color: var(--ink-2); letter-spacing: -0.01em; }
+.hero .sub { color: var(--ink-2); font-size: 13.5px; margin: 0; }
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.kpi {
+  background: var(--surface);
+  border-radius: 4px;
+  box-shadow: var(--shadow);
+  padding: 15px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.kpi .k-label {
+  font-size: 11.5px;
+  font-family: var(--mono);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+.kpi .k-value {
+  font-size: 25px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+.kpi .k-note { font-size: 12.5px; color: var(--ink-2); }
+
+/* ---------- panels ---------- */
+
+.panel {
+  background: var(--surface);
+  border-radius: 4px;
+  box-shadow: var(--shadow);
+  padding: 22px 24px 20px;
+  min-width: 0;
+}
+.panel-head { margin-bottom: 18px; }
+.panel h2 {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  margin: 0 0 5px;
+  text-wrap: balance;
+}
+.panel .why { margin: 0; font-size: 13.5px; color: var(--ink-2); max-width: 70ch; }
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+@media (max-width: 860px) { .grid-2 { grid-template-columns: 1fr; } }
+
+/* ---------- chart chrome ---------- */
+
+.chart { position: relative; width: 100%; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.gridline { stroke: var(--grid); stroke-width: 1; }
+.axisline { stroke: var(--axis); stroke-width: 1; }
+.tick {
+  fill: var(--ink-muted);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+.dlabel {
+  fill: var(--ink);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+}
+.panel-title {
+  fill: var(--ink-2);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-bottom: 14px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+.swatch { width: 14px; height: 3px; border-radius: 2px; flex: none; }
+.swatch.dot { width: 9px; height: 9px; border-radius: 50%; }
+
+.tip {
+  position: absolute;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  box-shadow: var(--shadow);
+  padding: 8px 10px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.5;
+  white-space: nowrap;
+  z-index: 5;
+  font-variant-numeric: tabular-nums;
+}
+.tip .t-head { font-weight: 600; margin-bottom: 3px; }
+.tip .t-row { display: flex; justify-content: space-between; gap: 14px; }
+.tip .t-row span:first-child { color: var(--ink-2); }
+
+/* ---------- controls ---------- */
+
+.controls { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.seg {
+  display: inline-flex;
+  background: var(--surface-sunk);
+  border-radius: 3px;
+  padding: 2px;
+  gap: 2px;
+}
+.seg button {
+  font: inherit;
+  font-family: var(--mono);
+  font-size: 12px;
+  border: 0;
+  background: transparent;
+  color: var(--ink-2);
+  padding: 6px 12px;
+  border-radius: 2px;
+  cursor: pointer;
+}
+.seg button[aria-pressed="true"] {
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 500;
+  box-shadow: 0 1px 2px rgba(15, 21, 29, 0.08);
+}
+.seg button:focus-visible, .linkish:focus-visible {
+  outline: 2px solid var(--s1);
+  outline-offset: 1px;
+}
+.linkish {
+  font: inherit;
+  font-family: var(--mono);
+  font-size: 12px;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--axis);
+  color: var(--ink-2);
+  padding: 0 0 1px;
+  cursor: pointer;
+}
+
+/* ---------- tables ---------- */
+
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+caption { text-align: left; color: var(--ink-2); font-size: 13px; padding-bottom: 10px; }
+th, td {
+  text-align: right;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--rule);
+  white-space: nowrap;
+}
+th:first-child, td:first-child { text-align: left; padding-left: 0; }
+th {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  font-weight: 500;
+}
+td { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); }
+td.text { font-family: var(--sans); color: var(--ink-2); }
+tbody tr:last-child td { border-bottom: 0; }
+.pill {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  padding: 2px 7px;
+  border-radius: 2px;
+  background: var(--surface-sunk);
+  color: var(--ink-2);
+}
+.pill.long  { background: var(--s2-wash); color: var(--ink); }
+.pill.short { background: var(--s1-wash); color: var(--ink); }
+
+/* ---------- notes ---------- */
+
+.notes {
+  border-top: 1px solid var(--rule);
+  padding-top: 20px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 22px;
+}
+.notes h3 {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  margin: 0 0 7px;
+  font-weight: 500;
+}
+.notes p { margin: 0 0 8px; font-size: 13px; color: var(--ink-2); }
+.notes p:last-child { margin-bottom: 0; }
+code {
+  font-family: var(--mono);
+  font-size: 0.92em;
+  background: var(--surface-sunk);
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+.sr {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+[hidden] { display: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+</style>
+
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow" id="eyebrow"></p>
+    <h1>What a daily gate costs a battery</h1>
+    <p class="standfirst">
+      A 10&nbsp;MW / 20&nbsp;MWh battery trading DE-LU day-ahead, optimised the way an
+      operator actually commits: one gate per delivery day, state of charge inherited
+      from the gate before. Measured against the same two years solved with perfect
+      foresight in a single window.
+    </p>
+  </header>
+
+  <dl class="nameplate" id="nameplate"></dl>
+
+  <section class="headline">
+    <div class="hero">
+      <span class="label">Rolling-horizon revenue</span>
+      <div class="figure" id="hero-figure"></div>
+      <p class="sub" id="hero-sub"></p>
+    </div>
+    <div class="kpis" id="kpis"></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Cumulative revenue against the perfect-foresight ceiling</h2>
+      <p class="why">
+        The ceiling is the same price series solved as one window with full hindsight.
+        It is not achievable — it is the reference the gate structure is measured against.
+        Both lines are trading profit; closing stock is marked separately below.
+      </p>
+    </div>
+    <div class="legend" id="cum-legend"></div>
+    <div class="chart" id="cum-chart"></div>
+  </section>
+
+  <div class="grid-2">
+    <section class="panel">
+      <div class="panel-head">
+        <h2>How much lookahead is worth buying</h2>
+        <p class="why">
+          Capture rate against the ceiling as the optimisation window extends past the
+          committed day. The tail is always discarded — it only shapes the closing
+          state of charge. Dots, not bars: every value sits above 96%, so the scale is
+          clipped and a bar read from that origin would overstate the gaps.
+        </p>
+      </div>
+      <div class="chart" id="sens-chart"></div>
+      <div class="controls" style="margin-top:14px; margin-bottom:0">
+        <button class="linkish" id="sens-toggle" aria-expanded="false">Show as table</button>
+      </div>
+      <div class="tablewrap" id="sens-table" hidden></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Revenue by month</h2>
+        <p class="why">
+          Trading profit per calendar month, including the value of stock carried across
+          each gate. Volatility, not price level, is what pays.
+        </p>
+      </div>
+      <div class="chart" id="month-chart"></div>
+    </section>
+  </div>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Dispatch on a 25-hour delivery day</h2>
+      <p class="why">
+        27 October 2024, when the clocks went back and Germany delivered 25 hourly MTUs.
+        Local time repeats 02:00; the two intervals are distinct in UTC and cleared at
+        different prices. Three measures, three panels — never one plot with two scales.
+      </p>
+    </div>
+    <div class="controls">
+      <div class="seg" role="group" aria-label="Choose delivery day">
+        <button type="button" id="day-dst" aria-pressed="true">27 Oct 2024 · 25 h</button>
+        <button type="button" id="day-best" aria-pressed="false"></button>
+      </div>
+    </div>
+    <div class="legend" id="disp-legend"></div>
+    <div class="chart" id="disp-chart"></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Every clock change in the backtest</h2>
+      <p class="why">
+        Four days in two years are not 24 hours long, and the gate that commits them
+        moves with the clock: noon local is 10:00Z under summer time and 11:00Z under
+        winter time.
+      </p>
+    </div>
+    <div class="tablewrap" id="dst-table"></div>
+  </section>
+
+  <section class="notes" id="notes"></section>
+</div>
+
+<script id="run-data" type="application/json">/*__DATA__*/</script>
+<script>
+(function () {
+  "use strict";
+  const DATA = JSON.parse(document.getElementById("run-data").textContent);
+  const { meta, battery, headline, sensitivity, daily, perfect_cumulative,
+          monthly, dispatch_dst, dispatch_best, dst_days } = DATA;
+
+  const eur = (v, d) => "€" + v.toLocaleString("en-GB", {
+    minimumFractionDigits: d === undefined ? 0 : d,
+    maximumFractionDigits: d === undefined ? 0 : d,
+  });
+  const compact = (v) => {
+    const a = Math.abs(v);
+    if (a >= 1e6) return "€" + (v / 1e6).toFixed(2) + "M";
+    if (a >= 1e3) return "€" + Math.round(v / 1e3) + "k";
+    return "€" + Math.round(v);
+  };
+  const pct = (v, d) => (v * 100).toFixed(d === undefined ? 2 : d) + "%";
+  const el = (tag, attrs, kids) => {
+    const n = document.createElementNS("http://www.w3.org/2000/svg", tag);
+    for (const k in attrs) if (attrs[k] !== undefined && attrs[k] !== null) {
+      n.setAttribute(k, attrs[k]);
+    }
+    (kids || []).forEach((c) => n.appendChild(c));
+    return n;
+  };
+  const text = (x, y, str, cls, anchor, extra) => {
+    const t = el("text", Object.assign({
+      x: x, y: y, class: cls || "tick", "text-anchor": anchor || "start",
+    }, extra || {}));
+    t.textContent = str;
+    return t;
+  };
+  const niceTicks = (lo, hi, count) => {
+    const span = hi - lo || 1;
+    const raw = span / count;
+    const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const norm = raw / mag;
+    const step = (norm >= 5 ? 10 : norm >= 2 ? 5 : norm >= 1 ? 2 : 1) * mag;
+    const out = [];
+    for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(v);
+    return out;
+  };
+
+  /* ---------------- header ---------------- */
+
+  document.getElementById("eyebrow").textContent =
+    meta.zone + " day-ahead · " + meta.start + " → " + meta.end + " · " +
+    meta.intervals.toLocaleString("en-GB") + " MTUs";
+
+  const plate = [
+    ["Power", battery.power_mw.toFixed(0) + " MW"],
+    ["Energy", battery.energy_mwh.toFixed(0) + " MWh"],
+    ["Duration", (battery.energy_mwh / battery.power_mw).toFixed(1) + " h"],
+    ["η charge", battery.eta_charge.toFixed(3)],
+    ["η discharge", battery.eta_discharge.toFixed(3)],
+    ["RTE", (battery.round_trip * 100).toFixed(2) + "%"],
+    ["Throughput", "€" + battery.degradation.toFixed(2) + "/MWh"],
+  ];
+  const plateEl = document.getElementById("nameplate");
+  plate.forEach(([k, v]) => {
+    const d = document.createElement("div");
+    const dt = document.createElement("dt"); dt.textContent = k;
+    const dd = document.createElement("dd"); dd.textContent = v;
+    d.append(dt, dd); plateEl.appendChild(d);
+  });
+
+  document.getElementById("hero-figure").innerHTML =
+    eur(Math.round(headline.eur_per_mw_year)) +
+    ' <span class="unit">per MW-year</span>';
+  document.getElementById("hero-sub").textContent =
+    eur(Math.round(headline.rolling_trading)) + " over " + meta.days +
+    " delivery days, " + headline.cycles.toFixed(0) + " equivalent full cycles.";
+
+  const kpis = [
+    { label: "Capture rate", value: pct(headline.capture),
+      note: "of the perfect-foresight ceiling" },
+    { label: "Cost of the gate", value: eur(Math.round(headline.gate_cost)),
+      note: "forgone over two years" },
+    { label: "Cycling", value: headline.cycles_per_day.toFixed(2),
+      note: "full cycles per day" },
+    { label: "Negative prices", value: headline.negative_hours.toLocaleString("en-GB"),
+      note: "MTUs below €0, floor " + eur(headline.min_price) },
+  ];
+  const kpiEl = document.getElementById("kpis");
+  kpis.forEach((k) => {
+    const d = document.createElement("div");
+    d.className = "kpi";
+    d.innerHTML = '<span class="k-label"></span><span class="k-value"></span>' +
+                  '<span class="k-note"></span>';
+    d.querySelector(".k-label").textContent = k.label;
+    d.querySelector(".k-value").textContent = k.value;
+    d.querySelector(".k-note").textContent = k.note;
+    kpiEl.appendChild(d);
+  });
+
+  /* ---------------- shared tooltip ---------------- */
+
+  function attachTip(host) {
+    const tip = document.createElement("div");
+    tip.className = "tip";
+    host.appendChild(tip);
+    return {
+      show(html, x, y) {
+        tip.innerHTML = html;
+        tip.style.opacity = "1";
+        const w = tip.offsetWidth, h = tip.offsetHeight;
+        let left = x + 14;
+        if (left + w > host.clientWidth) left = x - w - 14;
+        tip.style.left = Math.max(0, left) + "px";
+        tip.style.top = Math.max(0, y - h - 10) + "px";
+      },
+      hide() { tip.style.opacity = "0"; },
+    };
+  }
+  const tipRows = (head, rows) =>
+    '<div class="t-head">' + head + "</div>" +
+    rows.map((r) => '<div class="t-row"><span>' + r[0] + "</span><span>" +
+      r[1] + "</span></div>").join("");
+
+  /* ---------------- cumulative chart ---------------- */
+
+  (function cumulative() {
+    const host = document.getElementById("cum-chart");
+    const W = 1000, H = 330, m = { t: 14, r: 68, b: 34, l: 58 };
+    const iw = W - m.l - m.r, ih = H - m.t - m.b;
+
+    const roll = daily.map((d) => d.cum);
+    const pf = perfect_cumulative;
+    const hi = Math.max(roll[roll.length - 1], pf[pf.length - 1]);
+    const ticks = niceTicks(0, hi, 7);
+    const yMax = Math.max(ticks[ticks.length - 1], hi);
+    const x = (i) => m.l + (i / (daily.length - 1)) * iw;
+    const y = (v) => m.t + ih - (v / yMax) * ih;
+
+    const svg = el("svg", { viewBox: "0 0 " + W + " " + H,
+      role: "img", "aria-label": "Cumulative trading profit, rolling horizon versus perfect foresight" });
+
+    ticks.forEach((t) => {
+      svg.appendChild(el("line", { class: "gridline", x1: m.l, x2: m.l + iw,
+        y1: y(t), y2: y(t) }));
+      svg.appendChild(text(m.l - 10, y(t) + 3.5, compact(t), "tick", "end"));
+    });
+
+    // year boundaries, labelled on the axis
+    daily.forEach((d, i) => {
+      if (d.date.slice(5) === "01-01") {
+        svg.appendChild(el("line", { class: "axisline", x1: x(i), x2: x(i),
+          y1: m.t, y2: m.t + ih }));
+      }
+    });
+    const monthsShown = ["2023-01", "2023-07", "2024-01", "2024-07"];
+    daily.forEach((d, i) => {
+      if (monthsShown.includes(d.date.slice(0, 7)) && d.date.slice(8) === "01") {
+        svg.appendChild(text(x(i), m.t + ih + 20,
+          new Date(d.date + "T00:00:00Z").toLocaleDateString("en-GB",
+            { month: "short", year: "numeric", timeZone: "UTC" }), "tick", "middle"));
+      }
+    });
+    svg.appendChild(el("line", { class: "axisline", x1: m.l, x2: m.l + iw,
+      y1: m.t + ih, y2: m.t + ih }));
+
+    const path = (arr) => arr.map((v, i) => (i ? "L" : "M") + x(i).toFixed(2) +
+      " " + y(v).toFixed(2)).join(" ");
+
+    svg.appendChild(el("path", { d: path(roll) + " L" + x(roll.length - 1) + " " +
+      y(0) + " L" + x(0) + " " + y(0) + " Z", fill: "var(--s1-wash)", stroke: "none" }));
+    svg.appendChild(el("path", { d: path(pf), fill: "none", stroke: "var(--s2)",
+      "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }));
+    svg.appendChild(el("path", { d: path(roll), fill: "none", stroke: "var(--s1)",
+      "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }));
+
+    // endpoints, direct-labelled
+    const last = daily.length - 1;
+    [[pf[last], "var(--s2)", -6], [roll[last], "var(--s1)", 12]].forEach(([v, c, dy]) => {
+      svg.appendChild(el("circle", { cx: x(last), cy: y(v), r: 4.5, fill: c,
+        stroke: "var(--surface)", "stroke-width": 2 }));
+      svg.appendChild(text(x(last) + 9, y(v) + dy, compact(v), "dlabel", "start"));
+    });
+
+    const cursor = el("line", { class: "axisline", x1: 0, x2: 0, y1: m.t,
+      y2: m.t + ih, opacity: 0, stroke: "var(--ink-muted)" });
+    const dotA = el("circle", { r: 4, fill: "var(--s1)", stroke: "var(--surface)",
+      "stroke-width": 2, opacity: 0 });
+    const dotB = el("circle", { r: 4, fill: "var(--s2)", stroke: "var(--surface)",
+      "stroke-width": 2, opacity: 0 });
+    svg.append(cursor, dotA, dotB);
+
+    const hit = el("rect", { x: m.l, y: m.t, width: iw, height: ih,
+      fill: "transparent", style: "cursor:crosshair" });
+    svg.appendChild(hit);
+    host.appendChild(svg);
+    const tip = attachTip(host);
+
+    function move(ev) {
+      const box = svg.getBoundingClientRect();
+      const px = ((ev.clientX - box.left) / box.width) * W;
+      let i = Math.round(((px - m.l) / iw) * (daily.length - 1));
+      i = Math.max(0, Math.min(daily.length - 1, i));
+      const d = daily[i];
+      cursor.setAttribute("x1", x(i)); cursor.setAttribute("x2", x(i));
+      cursor.setAttribute("opacity", 0.5);
+      dotA.setAttribute("cx", x(i)); dotA.setAttribute("cy", y(roll[i]));
+      dotB.setAttribute("cx", x(i)); dotB.setAttribute("cy", y(pf[i]));
+      dotA.setAttribute("opacity", 1); dotB.setAttribute("opacity", 1);
+      const sx = (x(i) / W) * box.width, sy = (y(roll[i]) / H) * box.height;
+      tip.show(tipRows(d.date, [
+        ["Rolling", compact(roll[i])],
+        ["Ceiling", compact(pf[i])],
+        ["Behind by", eur(Math.round(pf[i] - roll[i]))],
+        ["Day spread", eur(d.spread, 0) + "/MWh"],
+      ]), sx, sy);
+    }
+    hit.addEventListener("pointermove", move);
+    hit.addEventListener("pointerleave", () => {
+      tip.hide(); cursor.setAttribute("opacity", 0);
+      dotA.setAttribute("opacity", 0); dotB.setAttribute("opacity", 0);
+    });
+
+    document.getElementById("cum-legend").innerHTML =
+      '<span><i class="swatch" style="background:var(--s1)"></i>Rolling horizon · one gate per day</span>' +
+      '<span><i class="swatch" style="background:var(--s2)"></i>Perfect foresight · single window</span>';
+  })();
+
+  /* ---------------- lookahead sensitivity ---------------- */
+
+  (function sens() {
+    const host = document.getElementById("sens-chart");
+    const rows = sensitivity.slice();
+    const W = 500, rowH = 34, m = { t: 8, r: 58, b: 26, l: 92 };
+    const H = m.t + rows.length * rowH + m.b;
+    const iw = W - m.l - m.r;
+
+    // Every value sits between ~96% and 100%. Bars would need a truncated
+    // baseline to show any difference, and a bar's length read from a non-zero
+    // origin lies. Dots carry position without implying length, so a clipped
+    // scale is honest here.
+    const lo = Math.min.apply(null, rows.map((r) => r.capture));
+    const base = Math.max(0, Math.floor((lo - 0.005) * 200) / 200);
+    const x = (v) => m.l + ((v - base) / (1 - base)) * iw;
+
+    const svg = el("svg", { viewBox: "0 0 " + W + " " + H, role: "img",
+      "aria-label": "Capture rate by lookahead length" });
+
+    [base, base + (1 - base) / 2, 1].forEach((t) => {
+      svg.appendChild(el("line", { class: "gridline", x1: x(t), x2: x(t),
+        y1: m.t, y2: m.t + rows.length * rowH }));
+      svg.appendChild(text(x(t), H - 8, pct(t, 1), "tick", "middle"));
+    });
+
+    rows.forEach((r, i) => {
+      const cy = m.t + i * rowH + rowH / 2;
+      const chosen = r.lookahead_hours === 24 && r.source === "realised";
+      const label = r.lookahead_hours + " h" + (r.source === "flat" ? " · flat" : "");
+      svg.appendChild(text(m.l - 12, cy + 4, label, "tick", "end"));
+      // track from the clipped origin to the dot, so the row reads as a scale
+      svg.appendChild(el("line", { x1: x(base), x2: x(r.capture), y1: cy, y2: cy,
+        stroke: "var(--grid)", "stroke-width": 2, "stroke-linecap": "round" }));
+      svg.appendChild(el("circle", { cx: x(r.capture), cy: cy, r: 5.5,
+        fill: chosen ? "var(--s1)" : "var(--s1-dim)",
+        stroke: "var(--surface)", "stroke-width": 2 }));
+      svg.appendChild(text(x(r.capture) + 12, cy + 4, pct(r.capture), "dlabel", "start"));
+    });
+    svg.appendChild(el("line", { class: "axisline", x1: x(base), x2: x(base),
+      y1: m.t, y2: m.t + rows.length * rowH }));
+
+    host.appendChild(svg);
+    const tip = attachTip(host);
+    rows.forEach((r, i) => {
+      const cy = m.t + i * rowH + rowH / 2;
+      const hit = el("rect", { x: 0, y: cy - rowH / 2, width: W, height: rowH,
+        fill: "transparent" });
+      svg.appendChild(hit);
+      hit.addEventListener("pointerenter", (ev) => {
+        const box = svg.getBoundingClientRect();
+        tip.show(tipRows(
+          r.lookahead_hours + " h lookahead · " + r.source + " prices", [
+            ["Capture", pct(r.capture)],
+            ["Trading", compact(r.trading_eur)],
+            ["Per MW-year", eur(Math.round(r.eur_per_mw_year))],
+            ["Cycles", r.cycles.toFixed(0)],
+          ]),
+          ((x(r.capture)) / W) * box.width, ((cy) / H) * box.height);
+      });
+      hit.addEventListener("pointerleave", () => tip.hide());
+    });
+
+    // table view
+    const tbl = document.getElementById("sens-table");
+    tbl.innerHTML =
+      "<table><caption>Capture rate by lookahead length and price source.</caption>" +
+      "<thead><tr><th>Lookahead</th><th>Prices</th><th>Capture</th>" +
+      "<th>Trading</th><th>€/MW-yr</th><th>Cycles</th></tr></thead><tbody>" +
+      rows.map((r) => "<tr><td>" + r.lookahead_hours + " h</td>" +
+        '<td class="text">' + r.source + "</td><td>" + pct(r.capture) + "</td><td>" +
+        compact(r.trading_eur) + "</td><td>" + eur(Math.round(r.eur_per_mw_year)) +
+        "</td><td>" + r.cycles.toFixed(0) + "</td></tr>").join("") +
+      "</tbody></table>";
+    const toggle = document.getElementById("sens-toggle");
+    toggle.addEventListener("click", () => {
+      const open = tbl.hidden;
+      tbl.hidden = !open;
+      toggle.setAttribute("aria-expanded", String(open));
+      toggle.textContent = open ? "Hide table" : "Show as table";
+    });
+  })();
+
+  /* ---------------- monthly ---------------- */
+
+  (function months() {
+    const host = document.getElementById("month-chart");
+    const W = 500, H = 300, m = { t: 12, r: 10, b: 40, l: 52 };
+    const iw = W - m.l - m.r, ih = H - m.t - m.b;
+    const hi = Math.max.apply(null, monthly.map((d) => d.net));
+    const ticks = niceTicks(0, hi, 4);
+    const yMax = Math.max(ticks[ticks.length - 1], hi);
+    const band = iw / monthly.length;
+    const bw = Math.min(24, band - 2);
+    const y = (v) => m.t + ih - (v / yMax) * ih;
+
+    const svg = el("svg", { viewBox: "0 0 " + W + " " + H, role: "img",
+      "aria-label": "Net trading profit by month" });
+    ticks.forEach((t) => {
+      svg.appendChild(el("line", { class: "gridline", x1: m.l, x2: m.l + iw,
+        y1: y(t), y2: y(t) }));
+      svg.appendChild(text(m.l - 9, y(t) + 3.5, compact(t), "tick", "end"));
+    });
+
+    monthly.forEach((d, i) => {
+      const cx = m.l + band * i + band / 2;
+      const top = y(d.net);
+      const h = m.t + ih - top;
+      const r = Math.min(4, h / 2, bw / 2);   // never round more than the bar has
+      svg.appendChild(el("path", {
+        d: "M" + (cx - bw / 2) + " " + (m.t + ih) +
+           " L" + (cx - bw / 2) + " " + (top + r) +
+           " Q" + (cx - bw / 2) + " " + top + " " + (cx - bw / 2 + r) + " " + top +
+           " L" + (cx + bw / 2 - r) + " " + top +
+           " Q" + (cx + bw / 2) + " " + top + " " + (cx + bw / 2) + " " + (top + r) +
+           " L" + (cx + bw / 2) + " " + (m.t + ih) + " Z",
+        fill: "var(--s1)",
+      }));
+      if (d.month.slice(5) === "01" || d.month.slice(5) === "07") {
+        svg.appendChild(text(cx, m.t + ih + 18,
+          d.month.slice(5) === "01" ? d.month.slice(0, 4) : "Jul", "tick", "middle"));
+      }
+    });
+    svg.appendChild(el("line", { class: "axisline", x1: m.l, x2: m.l + iw,
+      y1: m.t + ih, y2: m.t + ih }));
+
+    host.appendChild(svg);
+    const tip = attachTip(host);
+    monthly.forEach((d, i) => {
+      const cx = m.l + band * i + band / 2;
+      const hit = el("rect", { x: cx - band / 2, y: m.t, width: band, height: ih,
+        fill: "transparent" });
+      svg.appendChild(hit);
+      hit.addEventListener("pointerenter", () => {
+        const box = svg.getBoundingClientRect();
+        tip.show(tipRows(d.month, [
+          ["Net", eur(Math.round(d.net))],
+          ["Cycles", d.cycles.toFixed(1)],
+          ["Mean spread", eur(d.spread, 0) + "/MWh"],
+        ]), (cx / W) * box.width, (y(d.net) / H) * box.height);
+      });
+      hit.addEventListener("pointerleave", () => tip.hide());
+    });
+  })();
+
+  /* ---------------- dispatch small multiples ---------------- */
+
+  const dispHost = document.getElementById("disp-chart");
+  const dispTip = attachTip(dispHost);
+
+  function drawDispatch(rows, title) {
+    dispHost.querySelectorAll("svg").forEach((n) => n.remove());
+    const W = 1000, m = { t: 18, r: 16, b: 40, l: 62 };
+    const panelH = 108, gap = 30;
+    const H = m.t + panelH * 3 + gap * 2 + m.b;
+    const iw = W - m.l - m.r;
+    const band = iw / rows.length;
+    const bw = Math.min(24, band - 3);
+
+    const svg = el("svg", { viewBox: "0 0 " + W + " " + H, role: "img",
+      "aria-label": "Price, power and state of charge for " + title });
+
+    const priceLo = Math.min(0, Math.min.apply(null, rows.map((r) => r.price)));
+    const priceHi = Math.max.apply(null, rows.map((r) => r.price));
+    const pTop = m.t;
+    const pTicks = niceTicks(priceLo, priceHi, 3);
+    // The scale must cover the data even where the outermost tick falls short,
+    // or a peak draws outside its own panel.
+    const pLo = Math.min(priceLo, pTicks[0]);
+    const pHi = Math.max(priceHi, pTicks[pTicks.length - 1]);
+    const pScale = (v) => pTop + panelH - ((v - pLo) / (pHi - pLo || 1)) * panelH;
+
+    const powMax = Math.max(battery.power_mw, Math.max.apply(null,
+      rows.map((r) => Math.max(r.charge, r.discharge))));
+    const wTop = m.t + panelH + gap;
+    const wMid = wTop + panelH / 2;
+    const wScale = (v) => wMid - (v / powMax) * (panelH / 2);
+
+    const sTop = m.t + (panelH + gap) * 2;
+    const sScale = (v) => sTop + panelH - (v / battery.energy_mwh) * panelH;
+
+    const xc = (i) => m.l + band * i + band / 2;
+
+    function panelLabel(yTop, label) {
+      svg.appendChild(text(m.l, yTop - 7, label, "panel-title", "start"));
+    }
+
+    // --- price panel
+    panelLabel(pTop, "Cleared price · €/MWh");
+    pTicks.forEach((t) => {
+      svg.appendChild(el("line", { class: "gridline", x1: m.l, x2: m.l + iw,
+        y1: pScale(t), y2: pScale(t) }));
+      svg.appendChild(text(m.l - 9, pScale(t) + 3.5, Math.round(t), "tick", "end"));
+    });
+    svg.appendChild(el("path", {
+      d: rows.map((r, i) => (i ? "L" : "M") + xc(i).toFixed(2) + " " +
+        pScale(r.price).toFixed(2)).join(" "),
+      fill: "none", stroke: "var(--ink-2)", "stroke-width": 2,
+      "stroke-linejoin": "round", "stroke-linecap": "round",
+    }));
+
+    // --- power panel
+    panelLabel(wTop, "Power · MW   (up = discharge, down = charge)");
+    [powMax, 0, -powMax].forEach((t) => {
+      svg.appendChild(el("line", { class: t === 0 ? "axisline" : "gridline",
+        x1: m.l, x2: m.l + iw, y1: wScale(t), y2: wScale(t) }));
+      svg.appendChild(text(m.l - 9, wScale(t) + 3.5, Math.abs(t).toFixed(0), "tick", "end"));
+    });
+    rows.forEach((r, i) => {
+      const cx = xc(i);
+      if (r.discharge > 1e-6) {
+        const top = wScale(r.discharge);
+        const h = wMid - top - 1;
+        svg.appendChild(el("rect", { x: cx - bw / 2, y: top, width: bw,
+          height: Math.max(1, h), rx: 3, fill: "var(--s2)" }));
+      }
+      if (r.charge > 1e-6) {
+        const bot = wScale(-r.charge);
+        const h = bot - wMid - 1;
+        svg.appendChild(el("rect", { x: cx - bw / 2, y: wMid + 1, width: bw,
+          height: Math.max(1, h), rx: 3, fill: "var(--s1)" }));
+      }
+    });
+
+    // --- soc panel
+    panelLabel(sTop, "State of charge · MWh");
+    [0, battery.energy_mwh / 2, battery.energy_mwh].forEach((t) => {
+      svg.appendChild(el("line", { class: "gridline", x1: m.l, x2: m.l + iw,
+        y1: sScale(t), y2: sScale(t) }));
+      svg.appendChild(text(m.l - 9, sScale(t) + 3.5, t.toFixed(0), "tick", "end"));
+    });
+    const socPath = rows.map((r, i) => (i ? "L" : "M") + xc(i).toFixed(2) + " " +
+      sScale(r.soc).toFixed(2)).join(" ");
+    svg.appendChild(el("path", {
+      d: socPath + " L" + xc(rows.length - 1) + " " + sScale(0) +
+         " L" + xc(0) + " " + sScale(0) + " Z",
+      fill: "var(--s3-wash)", stroke: "none",
+    }));
+    svg.appendChild(el("path", { d: socPath, fill: "none", stroke: "var(--s3)",
+      "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }));
+
+    // --- shared x axis, local clock with UTC offset
+    rows.forEach((r, i) => {
+      const repeated = rows.filter((o) => o.local === r.local).length > 1;
+      const show = repeated || i % 3 === 0;
+      if (!show) return;
+      const label = repeated ? r.local + " " + r.offset.replace(/(\d{2})(\d{2})/, "$1:$2")
+                             : r.local;
+      svg.appendChild(text(xc(i), sTop + panelH + 20, label, "tick", "middle",
+        repeated ? { fill: "var(--ink)", "font-weight": "500" } : null));
+    });
+
+    // hover across all three panels
+    const tipHost = el("rect", { x: m.l, y: m.t, width: iw,
+      height: sTop + panelH - m.t, fill: "transparent", style: "cursor:crosshair" });
+    const cursor = el("line", { x1: 0, x2: 0, y1: m.t, y2: sTop + panelH,
+      stroke: "var(--ink-muted)", "stroke-width": 1, opacity: 0 });
+    svg.append(cursor, tipHost);
+    dispHost.appendChild(svg);
+
+    tipHost.addEventListener("pointermove", (ev) => {
+      const box = svg.getBoundingClientRect();
+      const px = ((ev.clientX - box.left) / box.width) * W;
+      let i = Math.floor((px - m.l) / band);
+      i = Math.max(0, Math.min(rows.length - 1, i));
+      const r = rows[i];
+      cursor.setAttribute("x1", xc(i)); cursor.setAttribute("x2", xc(i));
+      cursor.setAttribute("opacity", 0.45);
+      dispTip.show(tipRows(
+        r.local + " " + r.offset.replace(/(\d{2})(\d{2})/, "$1:$2"), [
+          ["Price", eur(r.price, 2) + "/MWh"],
+          ["Charge", r.charge.toFixed(2) + " MW"],
+          ["Discharge", r.discharge.toFixed(2) + " MW"],
+          ["SoC", r.soc.toFixed(2) + " MWh"],
+        ]),
+        (xc(i) / W) * box.width, (wScale(0) / H) * box.height);
+    });
+    tipHost.addEventListener("pointerleave", () => {
+      dispTip.hide(); cursor.setAttribute("opacity", 0);
+    });
+  }
+
+  document.getElementById("disp-legend").innerHTML =
+    '<span><i class="swatch dot" style="background:var(--s1)"></i>Charge (grid draw)</span>' +
+    '<span><i class="swatch dot" style="background:var(--s2)"></i>Discharge (delivered)</span>' +
+    '<span><i class="swatch" style="background:var(--s3)"></i>State of charge</span>' +
+    '<span><i class="swatch" style="background:var(--ink-2)"></i>Cleared price</span>';
+
+  const btnDst = document.getElementById("day-dst");
+  const btnBest = document.getElementById("day-best");
+  btnBest.textContent = headline.best_day + " · best day";
+  function selectDay(which) {
+    const dst = which === "dst";
+    btnDst.setAttribute("aria-pressed", String(dst));
+    btnBest.setAttribute("aria-pressed", String(!dst));
+    drawDispatch(dst ? dispatch_dst : dispatch_best,
+      dst ? "27 October 2024" : headline.best_day);
+  }
+  btnDst.addEventListener("click", () => selectDay("dst"));
+  btnBest.addEventListener("click", () => selectDay("best"));
+  selectDay("dst");
+
+  /* ---------------- DST table ---------------- */
+
+  document.getElementById("dst-table").innerHTML =
+    "<table><thead><tr><th>Delivery day</th><th>Direction</th><th>Length</th>" +
+    "<th>MTUs</th><th>Gate closure</th><th>Net</th></tr></thead><tbody>" +
+    dst_days.map((d) => {
+      const long = d.hours > 24;
+      return "<tr><td>" + d.date + "</td>" +
+        '<td><span class="pill ' + (long ? "long" : "short") + '">' +
+        (long ? "clocks back" : "clocks forward") + "</span></td>" +
+        "<td>" + d.hours + " h</td><td>" + d.intervals + "</td>" +
+        "<td>" + d.gate_utc + "</td><td>" + eur(Math.round(d.net)) + "</td></tr>";
+    }).join("") + "</tbody></table>";
+
+  /* ---------------- notes ---------------- */
+
+  document.getElementById("notes").innerHTML = [
+    ["What the gate constrains",
+     "<p>Not price knowledge — a battery bids a price-quantity curve and settles at " +
+     "the clearing price, so a self-selecting curve lands close to foresight on the " +
+     "cleared day. What binds is structural: one decision instant commits every MTU " +
+     "of day D, and the opening state of charge is inherited from the gate before.</p>"],
+    ["Where this is optimistic",
+     "<p>Lookahead uses realised D+1 prices, which were not known at the gate. The " +
+     "tail is discarded, so it only shapes the closing state of charge — but it is a " +
+     "leak. The <code>flat</code> row in the sensitivity table prices that tail at the " +
+     "committed day's mean instead, and brackets the effect.</p>"],
+    ["Method",
+     "<p>Linear program per gate, solved with HiGHS. Charge and discharge efficiency " +
+     "applied separately, never lumped. Degradation charged on delivered energy. " +
+     "Exclusivity binaries are added only to MTUs priced below €" +
+     battery.in_place_threshold + "/MWh, where a full battery would otherwise profit " +
+     "from charging and discharging at once to soak up negative prices.</p>"],
+    ["Provenance",
+     "<p>ENTSO-E Transparency Platform, day-ahead prices (document A44, SDAC), " +
+     meta.zone + ". " + meta.intervals.toLocaleString("en-GB") + " market time units " +
+     "across " + meta.days + " delivery days. Generated " + meta.generated_utc + ".</p>"],
+  ].map(([h, body]) => "<div><h3>" + h + "</h3>" + body + "</div>").join("");
+})();
+</script>

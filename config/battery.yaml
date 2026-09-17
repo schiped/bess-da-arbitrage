@@ -1,0 +1,26 @@
+# Asset parameters. Power in MW, energy and state of charge in MWh.
+# Defaults describe a 10 MW / 20 MWh (2-hour) grid-scale lithium system.
+
+power_charge_max_mw: 10.0
+power_discharge_max_mw: 10.0
+
+# Nameplate energy, used for equivalent-full-cycle accounting.
+energy_capacity_mwh: 20.0
+
+# Usable SoC window. Narrow these to model a reserved depth-of-discharge band
+# rather than baking a derate into the nameplate.
+soc_min_mwh: 0.0
+soc_max_mwh: 20.0
+
+# Opening state of charge for the first optimisation window.
+soc_initial_mwh: 10.0
+
+# One-way efficiencies, applied separately: energy stored is
+# efficiency_charge * grid draw, and energy withdrawn from storage is
+# delivered / efficiency_discharge. Round trip is the product, 0.8464.
+efficiency_charge: 0.92
+efficiency_discharge: 0.92
+
+# Degradation billed as a throughput cost on energy actually delivered to the
+# grid (AC side), which is the basis cycle-life warranties are quoted against.
+degradation_eur_per_mwh_discharged: 3.0

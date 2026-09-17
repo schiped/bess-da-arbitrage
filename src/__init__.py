@@ -1,0 +1,1 @@
+"""BESS day-ahead arbitrage."""

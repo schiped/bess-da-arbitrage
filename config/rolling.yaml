@@ -1,0 +1,27 @@
+# Rolling-horizon settings: how the continuous problem is chopped into the
+# blocks a day-ahead operator actually commits to.
+
+# SDAC gate closure, local wall-clock time on D-1. Local, not UTC: it is 11:00Z
+# in winter and 10:00Z under summer time, and the recorded gate timestamps
+# reflect that.
+gate_closure_local_time: "12:00"
+
+# Delivery days committed at one gate. One gate commits every MTU of the day,
+# so this is the block size -- 23, 24 or 25 hours, never assumed.
+commitment_days: 1
+
+# Hours of lookahead past the committed block. The tail is optimised but
+# discarded; it exists so the end-of-block SoC is chosen against what comes
+# next rather than against the edge of the problem.
+lookahead_hours: 24
+
+# Where lookahead prices come from:
+#   realised - the cleared prices for D+1. Not known at the D-1 gate, so this
+#              is a bounded optimism: the tail is discarded, and it only
+#              informs the end-of-day SoC target. This is the benchmark case.
+#   flat     - a single value (the committed day's mean) standing in for
+#              "no view beyond today". Removes the leak; empties the battery
+#              more eagerly each evening, so it understates.
+lookahead_price_source: realised
+
+results_dir: results
